@@ -9,12 +9,10 @@ DATA_FILE = "gas_prices.json"
 
 def find_gas_price():
     """
-    This is a much more robust function to find the gas price.
-    It looks for the text "tomorrow" on the page and then finds the
-    associated price, ignoring most of the HTML structure.
+    Final, simple approach. Finds all prices on the page and takes the first one.
     """
     try:
-        print("--- Starting Scrape ---")
+        print("--- Starting Final Scrape Attempt ---")
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -24,32 +22,22 @@ def find_gas_price():
 
         soup = BeautifulSoup(page.content, "html.parser")
         
-        # Find all elements on the page that contain the text "tomorrow", case-insensitive.
-        # This is a much more reliable anchor than a CSS class.
-        tomorrow_elements = soup.find_all(lambda tag: "tomorrow" in tag.text.lower())
+        # Find all h2 tags that contain the '¢' symbol. These are our price candidates.
+        price_candidates = soup.find_all('h2', string=lambda text: text and '¢' in text)
         
-        if not tomorrow_elements:
-            print("CRITICAL ERROR: Could not find any elements containing the word 'tomorrow'.")
+        if not price_candidates:
+            print("CRITICAL ERROR: Could not find any price tags (h2 with '¢') on the page.")
             return None
 
-        print(f"Found {len(tomorrow_elements)} elements containing the word 'tomorrow'. Analyzing them...")
+        print(f"Found {len(price_candidates)} price candidates.")
+        for i, candidate in enumerate(price_candidates):
+            print(f"  Candidate {i+1}: {candidate.text.strip()}")
 
-        for element in tomorrow_elements:
-            # We assume the price is in a sibling or parent container.
-            # Let's search up to two levels of parents for the price element.
-            parent = element.parent
-            for _ in range(2): # Look in the immediate parent, then the grandparent
-                if parent:
-                    # The price is usually in a prominent 'h2' tag.
-                    price_tag = parent.find('h2')
-                    if price_tag and '¢' in price_tag.text:
-                        price_str = price_tag.text.strip().replace('¢', '')
-                        print(f"SUCCESS: Found price tag: {price_tag.text.strip()}")
-                        return float(price_str)
-                    parent = parent.parent # Move to the next parent
+        # The first price found on the page is always the "tomorrow" price.
+        first_price_str = price_candidates[0].text.strip().replace('¢', '')
         
-        print("CRITICAL ERROR: Found 'tomorrow' text, but could not find a price tag (h2 with '¢') nearby.")
-        return None
+        print(f"Successfully extracted tomorrow's price: {first_price_str}")
+        return float(first_price_str)
 
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
@@ -90,5 +78,4 @@ if __name__ == "__main__":
         print("\nProcess completed successfully.")
     else:
         print("\nProcess failed. Could not retrieve price.")
-        # Exit with an error code to make the workflow fail
         exit(1)
