@@ -1,65 +1,67 @@
+import requests
+from bs4 import BeautifulSoup
 import json
 import os
-from datetime import datetime, timedelta
-from playwright.sync_api import sync_playwright
+import re
+from datetime import datetime
 
 URL = "https://toronto.citynews.ca/toronto-gta-gas-prices/"
 DATA_FILE = "gas_prices.json"
 
-def find_gas_price_with_browser():
+def get_price_from_text():
     """
-    Final, correct method. First clicks the cookie consent button,
-    then finds the 'Tomorrow' card and extracts the price.
+    Final and correct method. Scrapes the static text prediction,
+    bypassing all anti-bot measures.
     """
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        try:
-            print("--- Launching Browser ---")
-            print(f"--- Navigating to {URL} ---")
-            page.goto(URL, wait_until='domcontentloaded', timeout=60000)
-            print("Page loaded. Looking for the cookie consent banner...")
+    try:
+        print("--- Starting Final Text-Based Scrape ---")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        page = requests.get(URL, headers=headers)
+        page.raise_for_status()
+        print("Successfully fetched the webpage.")
 
-            # --- Step 1: Handle the Cookie Banner ---
-            cookie_button_selector = "button.consent-ok-btn"
-            try:
-                # Wait for the "Allow All" button to be visible, with a short timeout
-                page.wait_for_selector(cookie_button_selector, timeout=15000)
-                print("Cookie banner found. Clicking 'Allow All'.")
-                page.click(cookie_button_selector)
-                print("Cookie button clicked. Waiting for page to settle...")
-                # Wait a moment for the page to reload/settle after the click
-                page.wait_for_timeout(5000)
-            except Exception as e:
-                # If the banner doesn't appear after 15s, assume it's not there and continue.
-                print(f"Cookie banner not found or could not be clicked (which is okay). Continuing... Error: {e}")
+        soup = BeautifulSoup(page.content, "html.parser")
 
-            # --- Step 2: Scrape the Price ---
-            print("Looking for the 'Tomorrow' price card...")
-            tomorrow_price_selector = "div:has(> h3:has-text('Tomorrow')) h2"
-            
-            page.wait_for_selector(tomorrow_price_selector, timeout=30000)
-            print("Found the 'Tomorrow' price card.")
+        # Find the specific div containing the prediction text.
+        prediction_div = soup.find("div", class_="gas-prices-section")
+        
+        if not prediction_div:
+            print("CRITICAL ERROR: Could not find the 'gas-prices-section' div.")
+            return None, None
 
-            price_text = page.inner_text(tomorrow_price_selector)
-            print(f"Successfully extracted price text: {price_text}")
-            
-            browser.close()
-            
-            price = float(price_text.strip().replace('¢', ''))
-            return price
+        prediction_text = prediction_div.get_text()
+        print(f"Found prediction text: {prediction_text.strip()}")
 
-        except Exception as e:
-            print(f"An error occurred during the scrape: {e}")
-            # Save a final screenshot on error for debugging
-            page.screenshot(path="error_screenshot.png")
-            browser.close()
-            return None
+        # Use regular expressions to find the price and date.
+        price_match = re.search(r'(\d+\.\d+)\s*cent\(s\)\/litre', prediction_text)
+        date_match = re.search(r'on\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})', prediction_text)
 
-def update_data_file(price):
-    """Updates the JSON file with the new price."""
-    tomorrow_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    new_entry = {"date": tomorrow_date, "price": price}
+        if not price_match:
+            print("CRITICAL ERROR: Could not find the price in the text.")
+            return None, None
+        
+        if not date_match:
+            print("CRITICAL ERROR: Could not find the date in the text.")
+            return None, None
+
+        price = float(price_match.group(1))
+        # Reconstruct the date from the matched parts.
+        date_str = f"{date_match.group(1)} {date_match.group(2)} {date_match.group(3)}"
+        date_obj = datetime.strptime(date_str, "%B %d %Y")
+        formatted_date = date_obj.strftime("%Y-%m-%d")
+
+        print(f"Successfully extracted Price: {price}, Date: {formatted_date}")
+        return price, formatted_date
+
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None, None
+
+def update_data_file(price, date):
+    """Updates the JSON file with the new price and date."""
+    new_entry = {"date": date, "price": price}
 
     data = []
     if os.path.exists(DATA_FILE):
@@ -75,14 +77,14 @@ def update_data_file(price):
             json.dump(data, f, indent=4)
         print(f"Successfully wrote new entry to {DATA_FILE}")
     else:
-        print("Data for tomorrow already exists. No update needed.")
+        print("Data for this date already exists. No update needed.")
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    price = find_gas_price_with_browser()
-    if price is not None:
-        update_data_file(price)
+    price, date = get_price_from_text()
+    if price is not None and date is not None:
+        update_data_file(price, date)
         print("\nProcess completed successfully.")
     else:
-        print("\nProcess failed. Could not retrieve price.")
+        print("\nProcess failed. Could not retrieve data.")
         exit(1)
