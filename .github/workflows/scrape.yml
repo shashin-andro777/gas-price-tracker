@@ -8,6 +8,11 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    
+    # This is the new block that grants permission for the bot to write files.
+    permissions:
+      contents: write
+      
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
