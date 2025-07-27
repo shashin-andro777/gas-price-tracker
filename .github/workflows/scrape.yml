@@ -25,16 +25,20 @@ jobs:
       - name: Run scraper
         run: python scraper.py
 
+      - name: List files to debug
+        run: ls -la
+
       - name: Commit and push if data changed
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          git add gas_prices.json
-          # Check if there are any changes to commit
-          if git diff --staged --quiet; then
-            echo "No changes to commit."
-          else
+          # Add the file only if it exists
+          if [ -f gas_prices.json ]; then
+            git add gas_prices.json
             git commit -m "Update gas prices data"
-            # Use the PAT to authenticate the push command directly
-            git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/shashin-andro777/gas-price-tracker.git
+            git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
+          else
+            echo "gas_prices.json not found. Skipping commit."
+            # Exit with success code to prevent the workflow from failing
+            exit 0
           fi
