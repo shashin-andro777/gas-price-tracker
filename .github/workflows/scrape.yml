@@ -1,4 +1,4 @@
-name: Scrape Gas Prices
+name: Scrape Gas Prices (DEBUG MODE)
 
 on:
   workflow_dispatch:
@@ -22,23 +22,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
-      - name: Run scraper
+      - name: Run scraper and show output
         run: python scraper.py
 
-      - name: List files to debug
-        run: ls -la
-
-      - name: Commit and push if data changed
+      - name: Commit and push data
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          # Add the file only if it exists
-          if [ -f gas_prices.json ]; then
-            git add gas_prices.json
-            git commit -m "Update gas prices data"
-            git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
-          else
-            echo "gas_prices.json not found. Skipping commit."
-            # Exit with success code to prevent the workflow from failing
-            exit 0
-          fi
+          git add gas_prices.json
+          git commit -m "Update gas prices data"
+          git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
