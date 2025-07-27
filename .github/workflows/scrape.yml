@@ -1,7 +1,9 @@
-name: Scrape Gas Prices (DIAGNOSTIC RUN)
+name: Scrape Gas Prices
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *'
 
 jobs:
   scrape:
@@ -21,13 +23,18 @@ jobs:
           pip install playwright
           python -m playwright install --with-deps
 
-      - name: Run diagnostic scraper
-        # We add '|| true' so the workflow doesn't stop on the expected error
-        run: python scraper.py || true
+      - name: Run browser-based scraper
+        run: python scraper.py
 
-      - name: Upload diagnostic artifacts
-        # This is the corrected line, using v4
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-files
-          path: debug_artifacts/
+      - name: Commit and push if data changed
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          if [ -f gas_prices.json ]; then
+            git add gas_prices.json
+            git commit -m "Update gas prices data"
+            git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
+          else
+            echo "gas_prices.json not found after scrape. Exiting with error."
+            exit 1
+          fi
