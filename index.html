@@ -4,52 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GTA Gas Price Tracker</title>
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js for the graph -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        /* Use the Inter font family */
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Custom styles for the "tomorrow" price card */
+        body { font-family: 'Inter', sans-serif; }
         .price-card {
             background: linear-gradient(135deg, #1e3a8a, #3b82f6);
             box-shadow: 0 10px 20px rgba(0,0,0,0.1), 0 6px 6px rgba(0,0,0,0.1);
         }
-        .price-card .price {
-            font-weight: 900; /* Black weight for impact */
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-        }
+        .price-card .price { font-weight: 900; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
+        /* Hide elements meant for logged-out users */
+        .logged-in .auth-logged-out { display: none; }
+        /* Hide elements meant for logged-in users */
+        .logged-out .auth-logged-in { display: none; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800">
+<body class="bg-slate-100 text-slate-800 logged-out">
 
     <div class="container mx-auto p-4 md:p-8 max-w-4xl">
 
-        <!-- Header Section -->
         <header class="text-center mb-8">
             <h1 class="text-4xl md:text-5xl font-bold text-slate-900">GTA Gas Prices</h1>
             <p class="text-slate-600 mt-2">Historical data and next-day price for the Greater Toronto Area.</p>
         </header>
 
-        <!-- Main Content Area -->
         <main>
-            <!-- Tomorrow's Price Card -->
+            <!-- Price Card -->
             <div id="price-card-container" class="mb-8">
                 <div class="price-card text-white rounded-2xl p-6 md:p-8 flex flex-col items-center justify-center text-center">
                     <h2 class="text-2xl md:text-3xl font-bold uppercase tracking-wider">Price for Tomorrow</h2>
                     <p id="tomorrow-date" class="text-lg text-blue-200 mb-2">Loading...</p>
                     <div id="tomorrow-price" class="price text-7xl md:text-8xl">
-                        <span id="price-value">--.-</span>
-                        <span class="text-5xl font-medium">¢</span>
+                        <span id="price-value">--.-</span><span class="text-5xl font-medium">¢</span>
                     </div>
                     <p class="text-sm text-blue-300 mt-2">per litre</p>
+                </div>
+            </div>
+
+            <!-- User Authentication & Subscription Section -->
+            <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                <!-- Logged Out View -->
+                <div class="auth-logged-out">
+                    <h3 class="text-xl font-bold mb-4 text-center">Sign Up for Daily Price Alerts</h3>
+                    <form id="signup-form" class="space-y-4">
+                        <input id="signup-email" type="email" placeholder="Enter your email" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        <input id="signup-password" type="password" placeholder="Create a password" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">Create Account & Subscribe</button>
+                    </form>
+                    <p id="auth-error" class="text-red-500 text-center mt-2"></p>
+                    <p class="text-center text-sm text-slate-500 mt-4">
+                        Already have an account? <a href="#" id="show-login" class="text-blue-600 hover:underline">Log In</a>
+                    </p>
+                </div>
+
+                <!-- Logged In View -->
+                <div class="auth-logged-in">
+                    <h3 class="text-xl font-bold mb-2 text-center">Welcome!</h3>
+                    <p id="user-email-display" class="text-center text-slate-600 mb-4"></p>
+                    <div id="subscription-status" class="text-center mb-4">Loading subscription status...</div>
+                    <div class="flex space-x-4">
+                        <button id="subscribe-button" class="flex-1 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">Subscribe to Alerts</button>
+                        <button id="unsubscribe-button" class="flex-1 bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">Unsubscribe</button>
+                    </div>
+                    <button id="logout-button" class="w-full mt-4 bg-slate-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-600 transition-colors">Log Out</button>
                 </div>
             </div>
 
@@ -59,83 +79,191 @@
                 <div id="chart-container" style="position: relative; height: 60vh; max-height: 400px;">
                     <canvas id="gasPriceChart"></canvas>
                 </div>
-                <div id="loading-indicator" class="text-center p-8">
-                    <p>Loading chart data...</p>
-                </div>
+                <div id="loading-indicator" class="text-center p-8"><p>Loading chart data...</p></div>
             </div>
         </main>
 
-        <!-- Footer -->
         <footer class="text-center mt-8 text-slate-500 text-sm">
             <p>Data sourced from CityNews. Not for commercial use.</p>
             <p>Last updated: <span id="last-updated">loading...</span></p>
         </footer>
-
     </div>
 
-    <script>
-        // --- Configuration ---
-        const DATA_URL = './gas_prices.json'; // The path to our data file
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            signOut, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            deleteDoc,
+            onSnapshot
+        } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 
-        // --- Main Function to Load Data and Build the Page ---
+        // --- Your web app's Firebase configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCU3lATo-901h3zkm0R_Z7MCo-6JCjUoVk",
+            authDomain: "gas-price-tracker-41eae.firebaseapp.com",
+            projectId: "gas-price-tracker-41eae",
+            storageBucket: "gas-price-tracker-41eae.appspot.com",
+            messagingSenderId: "483769994952",
+            appId: "1:483769994952:web:3bd97a31af2e5398c01ffd",
+            measurementId: "G-Y58XL1ZE4Y"
+        };
+
+        // --- Initialize Firebase ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- DOM Elements ---
+        const body = document.body;
+        const signupForm = document.getElementById('signup-form');
+        const logoutButton = document.getElementById('logout-button');
+        const userEmailDisplay = document.getElementById('user-email-display');
+        const subscribeButton = document.getElementById('subscribe-button');
+        const unsubscribeButton = document.getElementById('unsubscribe-button');
+        const subscriptionStatus = document.getElementById('subscription-status');
+        const authError = document.getElementById('auth-error');
+
+        // --- Authentication Logic ---
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                // User is signed in
+                body.classList.remove('logged-out');
+                body.classList.add('logged-in');
+                userEmailDisplay.textContent = user.email;
+                checkSubscriptionStatus(user.uid);
+            } else {
+                // User is signed out
+                body.classList.remove('logged-in');
+                body.classList.add('logged-out');
+                userEmailDisplay.textContent = '';
+            }
+        });
+
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            authError.textContent = '';
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                // After successful signup, automatically subscribe them.
+                await subscribeToEmails(userCredential.user.uid, email);
+            } catch (error) {
+                authError.textContent = error.message;
+            }
+        });
+
+        logoutButton.addEventListener('click', () => {
+            signOut(auth);
+        });
+        
+        // Note: A login form would be similar to the signup form, calling signInWithEmailAndPassword.
+        // For simplicity, we're focusing on the signup flow.
+
+        // --- Subscription (Firestore) Logic ---
+        async function subscribeToEmails(userId, userEmail) {
+            try {
+                // Creates a document in the 'subscribers' collection with the user's ID.
+                await setDoc(doc(db, "subscribers", userId), {
+                    email: userEmail,
+                    subscribedAt: new Date()
+                });
+                console.log("Subscribed successfully!");
+            } catch (error) {
+                console.error("Error subscribing:", error);
+                subscriptionStatus.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function unsubscribeFromEmails(userId) {
+            try {
+                // Deletes the user's document from the 'subscribers' collection.
+                await deleteDoc(doc(db, "subscribers", userId));
+                console.log("Unsubscribed successfully!");
+            } catch (error) {
+                console.error("Error unsubscribing:", error);
+                subscriptionStatus.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        function checkSubscriptionStatus(userId) {
+            const docRef = doc(db, "subscribers", userId);
+            onSnapshot(docRef, (doc) => {
+                if (doc.exists()) {
+                    subscriptionStatus.innerHTML = '<span class="font-bold text-green-600">You are SUBSCRIBED to daily alerts.</span>';
+                    subscribeButton.style.display = 'none';
+                    unsubscribeButton.style.display = 'block';
+                } else {
+                    subscriptionStatus.innerHTML = '<span class="font-bold text-red-600">You are NOT subscribed to daily alerts.</span>';
+                    subscribeButton.style.display = 'block';
+                    unsubscribeButton.style.display = 'none';
+                }
+            });
+        }
+        
+        subscribeButton.addEventListener('click', () => {
+            const user = auth.currentUser;
+            if (user) {
+                subscribeToEmails(user.uid, user.email);
+            }
+        });
+        
+        unsubscribeButton.addEventListener('click', () => {
+            const user = auth.currentUser;
+            if (user) {
+                unsubscribeFromEmails(user.uid);
+            }
+        });
+
+    </script>
+    
+    <script>
+        // --- Existing Chart and Data Loading Logic ---
+        const DATA_URL = './gas_prices.json';
+
         async function initializeApp() {
             try {
-                // Fetch the gas price data from our JSON file.
-                // We add a cache-busting query parameter to ensure we always get the latest version.
                 const response = await fetch(`${DATA_URL}?v=${new Date().getTime()}`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
-
-                // Hide the loading indicator once data is fetched
                 document.getElementById('loading-indicator').style.display = 'none';
-
-                // Ensure data is not empty
                 if (data && data.length > 0) {
-                    // The data is sorted by date, so the last item is the most recent.
                     const latestEntry = data[data.length - 1];
-                    
-                    // Update the "Tomorrow's Price" card
                     updatePriceCard(latestEntry);
-
-                    // Create the historical price chart
                     createChart(data);
-
-                    // Update the "Last Updated" timestamp in the footer
                     document.getElementById('last-updated').textContent = new Date().toLocaleString();
                 } else {
                     throw new Error("Data file is empty or invalid.");
                 }
-
             } catch (error) {
                 console.error("Failed to initialize app:", error);
-                // Display an error message to the user
                 document.getElementById('loading-indicator').textContent = 'Error: Could not load price data.';
                 document.getElementById('price-value').textContent = 'Error';
             }
         }
 
-        // --- Function to Update the Price Card ---
         function updatePriceCard(entry) {
-            const priceValueElement = document.getElementById('price-value');
-            const tomorrowDateElement = document.getElementById('tomorrow-date');
-            
-            // Format the date for display (e.g., "Tuesday, July 27")
-            const date = new Date(entry.date + 'T00:00:00'); // Assume midnight in local timezone
+            const date = new Date(entry.date + 'T00:00:00');
             const formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
-            priceValueElement.textContent = entry.price.toFixed(1); // Format to one decimal place
-            tomorrowDateElement.textContent = formattedDate;
+            document.getElementById('price-value').textContent = entry.price.toFixed(1);
+            document.getElementById('tomorrow-date').textContent = formattedDate;
         }
 
-        // --- Function to Create the Chart ---
         function createChart(data) {
             const ctx = document.getElementById('gasPriceChart').getContext('2d');
-            
-            // We only want to show the last 30 entries for clarity
             const chartData = data.slice(-30);
-
             const labels = chartData.map(item => item.date);
             const prices = chartData.map(item => item.price);
 
@@ -146,64 +274,21 @@
                     datasets: [{
                         label: 'Gas Price (¢/L)',
                         data: prices,
-                        borderColor: '#3b82f6', // Blue line
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)', // Light blue fill
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
                         borderWidth: 3,
                         fill: true,
-                        tension: 0.3, // Makes the line smooth
-                        pointBackgroundColor: '#1e3a8a', // Dark blue points
-                        pointRadius: 4,
-                        pointHoverRadius: 6,
+                        tension: 0.3,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: false, // Don't start the axis at 0
-                            ticks: {
-                                // Add '¢' to the Y-axis labels
-                                callback: function(value, index, values) {
-                                    return value + '¢';
-                                }
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                maxRotation: 0,
-                                minRotation: 0,
-                                autoSkip: true,
-                                maxTicksLimit: 7 // Show a reasonable number of dates
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false // Hide the legend as it's self-explanatory
-                        },
-                        tooltip: {
-                            callbacks: {
-                                // Customize the tooltip to show price with '¢'
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
-                                    if (context.parsed.y !== null) {
-                                        label += context.parsed.y.toFixed(1) + '¢';
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    }
+                    scales: { y: { ticks: { callback: value => value + '¢' } } }
                 }
             });
         }
 
-        // --- Run the App ---
-        // This starts the process when the page has finished loading.
         document.addEventListener('DOMContentLoaded', initializeApp);
     </script>
 </body>
