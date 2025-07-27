@@ -3,8 +3,8 @@ name: Send Daily Email Alerts
 on:
   workflow_dispatch: # Allows manual running
   schedule:
-    # Runs at 10:00 UTC every day (e.g., 6:00 AM Toronto Time EDT)
-    - cron: '0 10 * * *'
+    # Runs at 15:15 UTC every day (11:15 AM Toronto Time EDT)
+    - cron: '15 15 * * *'
 
 jobs:
   send-emails:
