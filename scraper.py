@@ -6,77 +6,60 @@ from playwright.sync_api import sync_playwright
 URL = "https://toronto.citynews.ca/toronto-gta-gas-prices/"
 DATA_FILE = "gas_prices.json"
 
-def find_gas_price_with_browser():
+# --- Create a directory for debug artifacts ---
+DEBUG_DIR = "debug_artifacts"
+if not os.path.exists(DEBUG_DIR):
+    os.makedirs(DEBUG_DIR)
+
+def run_diagnostic_scrape():
     """
-    Final, correct method. Finds the 'Tomorrow' card specifically and
-    extracts the price from within it.
+    This is a special diagnostic script. It will try to find the price,
+    but more importantly, it will save a screenshot and the HTML content
+    of the page for manual analysis.
     """
-    try:
-        with sync_playwright() as p:
-            print("--- Launching Browser ---")
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        try:
+            print("--- Starting Diagnostic Scrape ---")
             print(f"--- Navigating to {URL} ---")
-            page.goto(URL, wait_until='domcontentloaded', timeout=60000)
-            print("Page loaded. Looking for the 'Tomorrow' price card...")
+            # Wait for the page to be fully loaded, including network requests
+            page.goto(URL, wait_until='networkidle', timeout=60000)
+            print("Page loaded. Waiting 5 seconds for any final scripts to run...")
+            page.wait_for_timeout(5000) # Extra wait time
 
-            # This is a highly specific and robust selector.
-            # It finds a div that contains an h3 with the text "Tomorrow",
-            # and then finds the h2 (the price) inside that same div.
-            tomorrow_price_selector = "div:has(> h3:has-text('Tomorrow')) h2"
+            # --- Save Diagnostic Files ---
+            screenshot_path = os.path.join(DEBUG_DIR, "screenshot.png")
+            html_path = os.path.join(DEBUG_DIR, "page_content.html")
             
-            # Wait for that specific element to be ready.
-            page.wait_for_selector(tomorrow_price_selector, timeout=30000)
-            print("Found the 'Tomorrow' price card.")
+            print(f"Saving screenshot to {screenshot_path}")
+            page.screenshot(path=screenshot_path, full_page=True)
+            
+            print(f"Saving HTML content to {html_path}")
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(page.content())
+            
+            print("--- Diagnostic files saved. Now attempting to find price... ---")
 
-            # Extract the text from that element.
-            price_text = page.inner_text(tomorrow_price_selector)
-            print(f"Successfully extracted price text: {price_text}")
+            # --- Attempt to find the price (this will likely fail, which is okay) ---
+            tomorrow_price_selector = "div:has(> h3:has-text('Tomorrow')) h2"
+            price_text = page.inner_text(tomorrow_price_selector, timeout=5000) # Short timeout
+            
+            print(f"SUCCESS: Found price text: {price_text}")
+            price = float(price_text.strip().replace('¢', ''))
             
             browser.close()
-            
-            # Clean up the string and convert to a number
-            price = float(price_text.strip().replace('¢', ''))
             return price
 
-    except Exception as e:
-        print(f"An error occurred during the browser-based scrape: {e}")
-        return None
-
-def update_data_file(price):
-    """Updates the JSON file with the new price."""
-    tomorrow_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    new_entry = {"date": tomorrow_date, "price": price}
-
-    data = []
-    existing_dates = set()
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            try:
-                data = json.load(f)
-                for entry in data:
-                    existing_dates.add(entry['date'])
-            except json.JSONDecodeError:
-                pass
-
-    if new_entry['date'] not in existing_dates:
-        data.append(new_entry)
-        print(f"New entry for {new_entry['date']} added.")
-    else:
-        print(f"Entry for {new_entry['date']} already exists.")
-
-    data.sort(key=lambda x: x['date'])
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
-    print(f"Successfully wrote to {DATA_FILE}")
+        except Exception as e:
+            print(f"\n--- SCRIPT FAILED AS EXPECTED ---")
+            print(f"Error message: {e}")
+            print("This is okay. The important part is that the diagnostic files were saved.")
+            browser.close()
+            # We will exit with a special code to indicate diagnostics are ready
+            exit(99) 
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    price = find_gas_price_with_browser()
-    if price is not None:
-        update_data_file(price)
-        print("\nProcess completed successfully.")
-    else:
-        print("\nProcess failed. Could not retrieve price.")
-        exit(1)
+    # This script is not intended to succeed, but to produce debug files.
+    run_diagnostic_scrape()
