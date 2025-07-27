@@ -11,9 +11,6 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
-        with:
-          # Use the new PAT for checkout
-          token: ${{ secrets.GH_PAT }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -33,6 +30,11 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add gas_prices.json
-          git diff --staged --quiet || git commit -m "Update gas prices data"
-          # The push command does not need to be changed, as the checkout action handles authentication
-          git push
+          # Check if there are any changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update gas prices data"
+            # Use the PAT to authenticate the push command directly
+            git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/shashin-andro777/gas-price-tracker.git
+          fi
