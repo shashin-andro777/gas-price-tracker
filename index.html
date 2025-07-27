@@ -48,6 +48,8 @@
                         <span id="price-value">--.-</span><span class="text-5xl font-medium">¢</span>
                     </div>
                     <p class="text-sm text-blue-300 mt-2">per litre</p>
+                    <!-- New element for comparison text -->
+                    <p id="price-comparison" class="text-lg h-6 mt-4"></p>
                 </div>
 
                 <!-- User Authentication & Subscription Section -->
@@ -200,6 +202,24 @@
     <script>
         const DATA_URL = './gas_prices.json';
 
+        // This new function will handle the comparison text
+        function updatePriceComparison(difference) {
+            const comparisonElement = document.getElementById('price-comparison');
+            let comparisonText = '';
+            let colorClass = 'text-blue-200'; // Default color for no change
+
+            if (difference > 0) {
+                colorClass = 'text-red-300'; // Lighter red for contrast on blue
+                comparisonText = `▲ ${difference.toFixed(1)}¢ higher than today`;
+            } else if (difference < 0) {
+                colorClass = 'text-green-300'; // Lighter green
+                comparisonText = `▼ ${Math.abs(difference).toFixed(1)}¢ lower than today`;
+            } else {
+                comparisonText = `▬ Unchanged from today`;
+            }
+            comparisonElement.innerHTML = `<span class="${colorClass} font-bold">${comparisonText}</span>`;
+        }
+
         async function initializeApp() {
             try {
                 const response = await fetch(`${DATA_URL}?v=${new Date().getTime()}`);
@@ -213,6 +233,14 @@
                     updatePriceCard(latestEntry);
                     createChart(data);
                     document.getElementById('last-updated').textContent = new Date().toLocaleString();
+
+                    // New logic for comparison: Check if there's at least 2 days of data
+                    if (data.length > 1) {
+                        const todayEntry = data[data.length - 2];
+                        const difference = latestEntry.price - todayEntry.price;
+                        updatePriceComparison(difference);
+                    }
+
                 } else {
                     throw new Error("Data file is empty or invalid.");
                 }
