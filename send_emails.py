@@ -13,7 +13,9 @@ def send_email(api_key, recipient_email, subject, html_content):
     payload = {
         "sender": {
             "name": "GTA Gas Prices",
-            "email": "noreply@gaspricetracker.com" # This can be a no-reply address
+            # THIS IS THE CORRECTED LINE:
+            # We are now sending from your verified sender address.
+            "email": "sx.pandya@gmail.com"
         },
         "to": [
             {
@@ -35,6 +37,10 @@ def send_email(api_key, recipient_email, subject, html_content):
         print(f"Successfully sent email to {recipient_email}")
     except requests.exceptions.RequestException as e:
         print(f"Error sending email to {recipient_email}: {e}")
+        # Print the response body for more details on the error
+        if e.response is not None:
+            print(f"Response from Brevo: {e.response.text}")
+
 
 def main():
     """
@@ -74,7 +80,6 @@ def main():
         price = latest_price_entry['price']
         date_str = latest_price_entry['date']
         
-        # Format the date for display (e.g., "Saturday, July 26, 2025")
         date_obj = datetime.strptime(date_str, "%Y-%m-%d")
         formatted_date = date_obj.strftime("%A, %B %d, %Y")
         
