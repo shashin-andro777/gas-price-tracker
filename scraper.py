@@ -8,41 +8,36 @@ DATA_FILE = "gas_prices.json"
 
 def find_gas_price_with_browser():
     """
-    Uses a real browser (via Playwright) to load the page, wait for
-    JavaScript to run, and then find the price. This is the definitive method.
+    Final, correct method. Finds the 'Tomorrow' card specifically and
+    extracts the price from within it.
     """
     try:
         with sync_playwright() as p:
             print("--- Launching Browser ---")
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             
             print(f"--- Navigating to {URL} ---")
-            page.goto(URL, wait_until='networkidle', timeout=60000) # Wait for network to be quiet
-            print("Page loaded. Waiting for price element to appear...")
+            page.goto(URL, wait_until='domcontentloaded', timeout=60000)
+            print("Page loaded. Looking for the 'Tomorrow' price card...")
 
-            # This is the crucial step: wait for the element to be visible on the page.
-            # We are looking for an h2 tag that contains the '¢' symbol.
-            price_selector = "h2:has-text('¢')"
-            page.wait_for_selector(price_selector, timeout=30000)
-            print("Price element is now visible.")
-
-            # Get all elements that match our price selector
-            price_elements = page.query_selector_all(price_selector)
+            # This is a highly specific and robust selector.
+            # It finds a div that contains an h3 with the text "Tomorrow",
+            # and then finds the h2 (the price) inside that same div.
+            tomorrow_price_selector = "div:has(> h3:has-text('Tomorrow')) h2"
             
-            if not price_elements:
-                print("CRITICAL ERROR: Waited for price element, but could not query it.")
-                browser.close()
-                return None
+            # Wait for that specific element to be ready.
+            page.wait_for_selector(tomorrow_price_selector, timeout=30000)
+            print("Found the 'Tomorrow' price card.")
 
-            # The first price on the page is the one for tomorrow.
-            tomorrow_price_str = price_elements[0].inner_text()
-            print(f"Successfully extracted price text: {tomorrow_price_str}")
+            # Extract the text from that element.
+            price_text = page.inner_text(tomorrow_price_selector)
+            print(f"Successfully extracted price text: {price_text}")
             
             browser.close()
             
             # Clean up the string and convert to a number
-            price = float(tomorrow_price_str.strip().replace('¢', ''))
+            price = float(price_text.strip().replace('¢', ''))
             return price
 
     except Exception as e:
