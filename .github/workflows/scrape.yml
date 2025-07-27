@@ -8,14 +8,12 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    
-    # This is the new block that grants permission for the bot to write files.
-    permissions:
-      contents: write
-      
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
+        with:
+          # Use the new PAT for checkout
+          token: ${{ secrets.GH_PAT }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -36,4 +34,5 @@ jobs:
           git config --global user.email "actions@github.com"
           git add gas_prices.json
           git diff --staged --quiet || git commit -m "Update gas prices data"
+          # The push command does not need to be changed, as the checkout action handles authentication
           git push
